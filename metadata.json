@@ -1,0 +1,6 @@
+{
+  "name": "SSS.sk — Atlas a databáza jaskýň Slovenska",
+  "description": "Odborná databáza, interaktívna mapa objavov, OCR extrakcia Spravodajov SSS a historický vývoj najdlhších a najhlbších jaskýň Slovenska.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
