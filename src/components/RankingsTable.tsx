@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   RefreshCw,
   Search,
+  TrendingUp,
 } from 'lucide-react';
 import type { CaveEntity } from '../types/caves';
 import {
@@ -14,6 +15,70 @@ import {
   exportRankingsPdf,
 } from '../utils/exportReports';
 import { buildBibliografiaUrl } from '../utils/biblioUrl';
+
+interface MilestoneCheckResult {
+  hasIncreased: boolean;
+  metricDelta: number | null;
+}
+
+/**
+ * Checks whether a cave's active ranking metric (length or depth) has increased
+ * compared to its previous recorded year.
+ */
+function checkExplorationMilestone(
+  cave: CaveEntity,
+  targetYear: number,
+  metric: 'length' | 'depth'
+): MilestoneCheckResult {
+  const sorted = [...cave.records].sort((a, b) => a.year - b.year);
+  const curr = sorted.find((r) => r.year === targetYear);
+  if (!curr) {
+    return {
+      hasIncreased: false,
+      metricDelta: null,
+    };
+  }
+
+  if (metric === 'length') {
+    const prevWithLength = [...sorted]
+      .filter((r) => r.year < targetYear && r.lengthM != null)
+      .pop();
+    const lengthDiff =
+      curr.lengthM != null && prevWithLength?.lengthM != null
+        ? Number((curr.lengthM - prevWithLength.lengthM).toFixed(1))
+        : curr.deltaLengthM ?? null;
+
+    const positiveDelta = lengthDiff != null && lengthDiff > 0 ? lengthDiff : null;
+    return {
+      hasIncreased: positiveDelta != null,
+      metricDelta: positiveDelta,
+    };
+  }
+
+  const prevWithDepth = [...sorted]
+    .filter((r) => r.year < targetYear && r.depthM != null)
+    .pop();
+  const depthDiff =
+    curr.depthM != null && prevWithDepth?.depthM != null
+      ? Number((curr.depthM - prevWithDepth.depthM).toFixed(1))
+      : curr.deltaDepthM ?? null;
+
+  const positiveDelta = depthDiff != null && depthDiff > 0 ? depthDiff : null;
+  return {
+    hasIncreased: positiveDelta != null,
+    metricDelta: positiveDelta,
+  };
+}
+
+/**
+ * Visual helper for measurement cells emphasizing positive exploration milestones.
+ */
+function getMeasurementHighlightClasses(isIncreased: boolean, isBoldChanged: boolean): string {
+  if (isIncreased) {
+    return 'font-bold text-emerald-700';
+  }
+  return isBoldChanged ? 'font-bold text-[#1a1e23]' : 'font-medium text-[#1a1e23]';
+}
 
 interface RankingsTableProps {
   caves: CaveEntity[];
@@ -265,12 +330,20 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
               ) : (
                 filteredRows.map((row) => {
                   const biblioUrl = buildBibliografiaUrl(row.cave.name);
+                  const milestone = checkExplorationMilestone(row.cave, selectedYear, metric);
+                  const isPositiveMilestone = milestone.hasIncreased || (row.deltaM != null && row.deltaM > 0);
+                  const displayDelta = milestone.metricDelta ?? (row.deltaM != null && row.deltaM > 0 ? row.deltaM : null);
+
                   return (
                     <tr
                       key={row.cave.id}
                       onClick={() => onSelectCave(row.cave)}
                       className={`cursor-pointer transition-colors hover:bg-[#f4f5f7] ${
-                        row.isBoldChanged ? 'bg-[#fef9e7]/55' : ''
+                        isPositiveMilestone
+                          ? 'bg-emerald-50/35'
+                          : row.isBoldChanged
+                          ? 'bg-[#fef9e7]/55'
+                          : ''
                       }`}
                     >
                       <td className="px-4 py-3 font-mono-tabular text-xs text-[#5a6370]">
@@ -278,7 +351,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
                       </td>
                       <td
                         className={`px-4 py-3 text-sm text-[#1a1e23] ${
-                          row.isBoldChanged ? 'font-bold' : 'font-normal'
+                          row.isBoldChanged || isPositiveMilestone ? 'font-bold' : 'font-normal'
                         }`}
                       >
                         {row.cave.name}
@@ -290,11 +363,24 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
                         {row.cave.subUnit}
                       </td>
                       <td
-                        className={`px-4 py-3 text-right font-mono-tabular text-sm ${
-                          row.isBoldChanged ? 'font-bold text-[#1a1e23]' : 'font-medium text-[#1a1e23]'
-                        }`}
+                        className={`px-4 py-3 text-right font-mono-tabular text-sm ${getMeasurementHighlightClasses(
+                          isPositiveMilestone,
+                          row.isBoldChanged
+                        )}`}
+                        title={
+                          isPositiveMilestone
+                            ? metric === 'length'
+                              ? 'Pozitívny prírastok dĺžky oproti predchádzajúcemu zaznamenanému roku'
+                              : 'Pozitívny prírastok hĺbky oproti predchádzajúcemu zaznamenanému roku'
+                            : undefined
+                        }
                       >
-                        {row.valueM.toLocaleString('sk-SK')}
+                        <span className="inline-flex items-center justify-end gap-1">
+                          {isPositiveMilestone && (
+                            <TrendingUp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          )}
+                          <span>{row.valueM.toLocaleString('sk-SK')}</span>
+                        </span>
                         {row.secondaryNote ? (
                           <span className="ml-1 text-xs font-medium text-[#c13100]">
                             {row.secondaryNote}
@@ -304,9 +390,9 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
                         ) : null}
                       </td>
                       <td className="px-4 py-3 text-right font-mono-tabular text-xs">
-                        {row.deltaM != null && row.deltaM > 0 ? (
+                        {displayDelta != null && displayDelta > 0 ? (
                           <span className="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">
-                            +{row.deltaM.toLocaleString('sk-SK')} m
+                            +{displayDelta.toLocaleString('sk-SK')} m
                           </span>
                         ) : (
                           <span className="text-[#98a2b3]">—</span>

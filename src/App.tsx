@@ -338,7 +338,11 @@ export default function App() {
         </div>
       </footer>
 
-      <CaveDetailDrawer cave={selectedCave} onClose={() => setSelectedCave(null)} />
+      <CaveDetailDrawer
+        cave={selectedCave}
+        activeMetric={metric}
+        onClose={() => setSelectedCave(null)}
+      />
     </div>
   );
 }

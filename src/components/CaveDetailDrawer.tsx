@@ -5,10 +5,116 @@ import { buildBibliografiaUrl } from '../utils/biblioUrl';
 
 interface CaveDetailDrawerProps {
   cave: CaveEntity | null;
+  activeMetric?: 'length' | 'depth';
   onClose: () => void;
 }
 
-export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({ cave, onClose }) => {
+interface ChartPoint {
+  year: number;
+  value: number;
+  isChanged: boolean;
+  delta: number | null;
+}
+
+const MetricTrajectoryChart: React.FC<{
+  title: string;
+  subtitle: string;
+  data: ChartPoint[];
+  strokeColor: string;
+}> = ({ title, subtitle, data, strokeColor }) => {
+  if (data.length === 0) return null;
+
+  const chartW = 540;
+  const chartH = 160;
+  const padX = 42;
+  const padY = 24;
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const minVal = Math.min(...data.map((d) => d.value), maxVal);
+  const minSpan = maxVal < 500 ? 10 : 100;
+  const range = Math.max(maxVal - minVal, minSpan);
+
+  const points = data.map((d, i) => {
+    const x =
+      data.length === 1
+        ? chartW / 2
+        : padX + (i / (data.length - 1)) * (chartW - padX * 2);
+    const y = chartH - padY - ((d.value - minVal) / range) * (chartH - padY * 2);
+    return { x, y, point: d };
+  });
+
+  const polylineStr = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="font-display text-base font-bold text-[#1a1e23]">{title}</h3>
+        <span className="text-[11px] text-[#5a6370]">{subtitle}</span>
+      </div>
+      <div className="mt-2.5 rounded-lg border border-[#e1e4e8] bg-[#f8f9fb] p-3">
+        <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-auto overflow-visible">
+          <line
+            x1={padX}
+            y1={chartH - padY}
+            x2={chartW - padX}
+            y2={chartH - padY}
+            stroke="#d5d9e0"
+            strokeWidth="1"
+          />
+          {points.length > 1 && (
+            <polyline
+              fill="none"
+              stroke={strokeColor}
+              strokeWidth="2.5"
+              points={polylineStr}
+            />
+          )}
+          {points.map((pt) => {
+            const isPositive = pt.point.delta != null && pt.point.delta > 0;
+            return (
+              <g key={pt.point.year}>
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r={isPositive || pt.point.isChanged ? 5 : 3.5}
+                  fill={isPositive ? '#10b981' : pt.point.isChanged ? '#fbbc05' : '#1a1e23'}
+                  stroke="#1a1e23"
+                  strokeWidth="1.5"
+                />
+                <text
+                  x={pt.x}
+                  y={chartH - 4}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="#5a6370"
+                  className="font-mono-tabular"
+                >
+                  {pt.point.year}
+                </text>
+                <text
+                  x={pt.x}
+                  y={pt.y - 9}
+                  textAnchor="middle"
+                  fontSize="9.5"
+                  fontWeight={isPositive || pt.point.isChanged ? 700 : 500}
+                  fill={isPositive ? '#047857' : '#1a1e23'}
+                  className="font-mono-tabular"
+                >
+                  {pt.point.value.toLocaleString('sk-SK')}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({
+  cave,
+  activeMetric = 'length',
+  onClose,
+}) => {
   const [articles, setArticles] = useState<BibliographyArticle[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(false);
 
@@ -42,29 +148,55 @@ export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({ cave, onClos
 
   const sortedRecords = [...cave.records].sort((a, b) => a.year - b.year);
   const latest = sortedRecords[sortedRecords.length - 1];
-  const lengthPts = sortedRecords.filter((r) => r.lengthM != null);
-  const maxLen = Math.max(...lengthPts.map((r) => r.lengthM || 0), 1);
-  const minLen = Math.min(...lengthPts.map((r) => r.lengthM || 0), maxLen);
+  const latestLengthRec = [...sortedRecords].reverse().find((r) => r.lengthM != null && r.lengthM > 0);
+  const latestDepthRec = [...sortedRecords].reverse().find((r) => r.depthM != null && r.depthM > 0);
 
-  // SVG chart dimensions
-  const chartW = 540;
-  const chartH = 160;
-  const padX = 42;
-  const padY = 20;
+  const lengthChartData: ChartPoint[] = sortedRecords
+    .filter((r): r is typeof r & { lengthM: number } => r.lengthM != null && r.lengthM > 0)
+    .map((r) => ({
+      year: r.year,
+      value: r.lengthM,
+      isChanged: Boolean(r.isBoldLength),
+      delta: r.deltaLengthM ?? null,
+    }));
 
-  const points = lengthPts.map((r, i) => {
-    const x =
-      lengthPts.length === 1
-        ? chartW / 2
-        : padX + (i / (lengthPts.length - 1)) * (chartW - padX * 2);
-    const range = Math.max(maxLen - minLen, 100);
-    const y =
-      chartH - padY - (((r.lengthM || 0) - minLen) / range) * (chartH - padY * 2);
-    return { x, y, rec: r };
-  });
+  const depthChartData: ChartPoint[] = sortedRecords
+    .filter((r): r is typeof r & { depthM: number } => r.depthM != null && r.depthM > 0)
+    .map((r) => ({
+      year: r.year,
+      value: r.depthM,
+      isChanged: Boolean(r.isBoldDepth),
+      delta: r.deltaDepthM ?? null,
+    }));
 
-  const polylineStr = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const hasLengthChart = lengthChartData.length > 0;
+  const hasDepthChart = depthChartData.length > 0;
   const biblioSearchUrl = buildBibliografiaUrl(cave.name);
+
+  const lengthChartNode = hasLengthChart ? (
+    <MetricTrajectoryChart
+      key="chart-length"
+      title="Vývoj dĺžky v čase (m)"
+      subtitle={`${lengthChartData.length} ${lengthChartData.length === 1 ? 'záznam' : lengthChartData.length < 5 ? 'záznamy' : 'záznamov'}`}
+      data={lengthChartData}
+      strokeColor="#c13100"
+    />
+  ) : null;
+
+  const depthChartNode = hasDepthChart ? (
+    <MetricTrajectoryChart
+      key="chart-depth"
+      title="Vývoj hĺbky v čase (m)"
+      subtitle={`${depthChartData.length} ${depthChartData.length === 1 ? 'záznam' : depthChartData.length < 5 ? 'záznamy' : 'záznamov'}`}
+      data={depthChartData}
+      strokeColor="#0369a1"
+    />
+  ) : null;
+
+  const orderedCharts =
+    activeMetric === 'depth'
+      ? [depthChartNode, lengthChartNode].filter(Boolean)
+      : [lengthChartNode, depthChartNode].filter(Boolean);
 
   return (
     <div
@@ -101,15 +233,33 @@ export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({ cave, onClos
             <div>
               <p className="text-xs text-[#5a6370]">Aktuálna dĺžka</p>
               <p className="mt-1 font-mono-tabular text-xl font-bold text-[#1a1e23]">
-                {latest?.lengthM != null ? `${latest.lengthM.toLocaleString('sk-SK')} m` : '—'}
+                {latest?.lengthM != null
+                  ? `${latest.lengthM.toLocaleString('sk-SK')} m`
+                  : latestLengthRec?.lengthM != null
+                  ? `${latestLengthRec.lengthM.toLocaleString('sk-SK')} m`
+                  : '—'}
                 {latest?.isUnverified ? '*' : ''}
               </p>
+              {latest?.lengthM == null && latestLengthRec && (
+                <p className="mt-0.5 text-[11px] text-[#5a6370]">
+                  posledný zápis {latestLengthRec.year}
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs text-[#5a6370]">Vertikálne rozpätie</p>
               <p className="mt-1 font-mono-tabular text-xl font-bold text-[#1a1e23]">
-                {latest?.depthM != null ? `${latest.depthM.toLocaleString('sk-SK')} m` : '—'}
+                {latest?.depthM != null
+                  ? `${latest.depthM.toLocaleString('sk-SK')} m`
+                  : latestDepthRec?.depthM != null
+                  ? `${latestDepthRec.depthM.toLocaleString('sk-SK')} m`
+                  : '—'}
               </p>
+              {latest?.depthM == null && latestDepthRec && (
+                <p className="mt-0.5 text-[11px] text-[#5a6370]">
+                  posledný zápis {latestDepthRec.year}
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs text-[#5a6370]">Nadmorská výška</p>
@@ -158,64 +308,9 @@ export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({ cave, onClos
             </div>
           </div>
 
-          {/* SVG Historical Length Trajectory */}
-          {points.length > 1 && (
-            <div>
-              <h3 className="font-display text-base font-bold text-[#1a1e23]">
-                Vývoj dĺžky v čase (m)
-              </h3>
-              <div className="mt-3 rounded-lg border border-[#e1e4e8] bg-[#f8f9fb] p-3">
-                <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-auto overflow-visible">
-                  <line
-                    x1={padX}
-                    y1={chartH - padY}
-                    x2={chartW - padX}
-                    y2={chartH - padY}
-                    stroke="#d5d9e0"
-                    strokeWidth="1"
-                  />
-                  <polyline
-                    fill="none"
-                    stroke="#c13100"
-                    strokeWidth="2.5"
-                    points={polylineStr}
-                  />
-                  {points.map((pt) => (
-                    <g key={pt.rec.year}>
-                      <circle
-                        cx={pt.x}
-                        cy={pt.y}
-                        r={pt.rec.isBoldLength ? 5 : 3.5}
-                        fill={pt.rec.isBoldLength ? '#fbbc05' : '#1a1e23'}
-                        stroke="#1a1e23"
-                        strokeWidth="1.5"
-                      />
-                      <text
-                        x={pt.x}
-                        y={chartH - 4}
-                        textAnchor="middle"
-                        fontSize="10"
-                        fill="#5a6370"
-                        className="font-mono-tabular"
-                      >
-                        {pt.rec.year}
-                      </text>
-                      <text
-                        x={pt.x}
-                        y={pt.y - 9}
-                        textAnchor="middle"
-                        fontSize="9.5"
-                        fontWeight={pt.rec.isBoldLength ? 700 : 500}
-                        fill="#1a1e23"
-                        className="font-mono-tabular"
-                      >
-                        {pt.rec.lengthM?.toLocaleString('sk-SK')}
-                      </text>
-                    </g>
-                  ))}
-                </svg>
-              </div>
-            </div>
+          {/* SVG Historical Length & Depth Trajectories */}
+          {orderedCharts.length > 0 && (
+            <div className="space-y-6">{orderedCharts}</div>
           )}
 
           {/* Chronological Table */}
@@ -241,11 +336,19 @@ export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({ cave, onClos
                       className={r.isBoldLength || r.isBoldDepth ? 'bg-[#fef9e7]/70 font-bold' : 'bg-white'}
                     >
                       <td className="px-3 py-2.5 font-mono-tabular">{r.year}</td>
-                      <td className="px-3 py-2.5 font-mono-tabular">
+                      <td
+                        className={`px-3 py-2.5 font-mono-tabular ${
+                          r.deltaLengthM != null && r.deltaLengthM > 0 ? 'font-bold text-emerald-700' : ''
+                        }`}
+                      >
                         {r.lengthM != null ? `${r.lengthM.toLocaleString('sk-SK')}` : '—'}
                         {r.secondarySurveyNote ? ` ${r.secondarySurveyNote}` : r.isUnverified ? '*' : ''}
                       </td>
-                      <td className="px-3 py-2.5 font-mono-tabular">
+                      <td
+                        className={`px-3 py-2.5 font-mono-tabular ${
+                          r.deltaDepthM != null && r.deltaDepthM > 0 ? 'font-bold text-emerald-700' : ''
+                        }`}
+                      >
                         {r.depthM != null ? `${r.depthM.toLocaleString('sk-SK')}` : '—'}
                       </td>
                       <td className="px-3 py-2.5 font-mono-tabular">
