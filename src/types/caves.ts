@@ -1,3 +1,11 @@
+export interface RankingSource {
+  issue: string;
+  pdfUrl: string;
+  pdfPage: number;
+  statusDate: string;
+  author?: string;
+}
+
 export interface CaveYearlyRecord {
   year: number;
   statusDate: string; // e.g. "31. 3. 2020"
@@ -14,6 +22,8 @@ export interface CaveYearlyRecord {
   deltaDepthM?: number | null;
   sourceIssue: string; // e.g. "Spravodaj SSS 2/2020"
   sourcePdfUrl: string;
+  sourceLength?: RankingSource;
+  sourceDepth?: RankingSource;
   author?: string;
   notes?: string;
   validationWarning?: string;
@@ -25,8 +35,8 @@ export interface CaveEntity {
   aliases?: string[];
   karstRegion: string;
   subUnit: string;
-  lat: number;
-  lon: number;
+  lat?: number;
+  lon?: number;
   elevationM?: number;
   discoveryYear?: number;
   isShowCave?: boolean;

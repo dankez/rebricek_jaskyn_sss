@@ -1,11 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as cheerio from 'cheerio';
 import { GoogleGenAI, Type } from '@google/genai';
 import { SEED_CAVES } from './src/data/seedCaves.ts';
+import { redactCaveLocations } from './src/utils/publicCaves.ts';
 import type {
   BibliographyArticle,
   CaveEntity,
@@ -17,9 +19,73 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT ?? 3000);
 const DB_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DB_DIR, 'caves-db.json');
+const LOCAL_ADMIN_USERNAME = 'local-admin';
+const LOCAL_ADMIN_PASSWORD = 'local-only-change-me';
+const ADMIN_USERNAME =
+  process.env.ADMIN_USERNAME?.trim() ||
+  (process.env.NODE_ENV === 'production' ? '' : LOCAL_ADMIN_USERNAME);
+const ADMIN_PASSWORD =
+  process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : LOCAL_ADMIN_PASSWORD);
+const configuredSessionSecret = process.env.SESSION_SECRET?.trim() || undefined;
+const configuredAppUrl = process.env.APP_URL?.trim();
+const publicSiteUrl =
+  configuredAppUrl && configuredAppUrl !== 'MY_APP_URL' ? new URL(configuredAppUrl) : undefined;
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !configuredSessionSecret) {
+  throw new Error('SESSION_SECRET musí byť nastavený v produkčnom prostredí.');
+}
+if (configuredSessionSecret && Buffer.byteLength(configuredSessionSecret) < 32) {
+  throw new Error('SESSION_SECRET musí mať aspoň 32 bajtov.');
+}
+if (isProduction && (
+  !process.env.ADMIN_USERNAME?.trim() ||
+  !process.env.ADMIN_PASSWORD?.trim() ||
+  (ADMIN_USERNAME === LOCAL_ADMIN_USERNAME && ADMIN_PASSWORD === LOCAL_ADMIN_PASSWORD)
+)) {
+  throw new Error('V produkcii nastavte vlastné prihlasovacie údaje administrátora.');
+}
+if (isProduction && publicSiteUrl?.protocol !== 'https:') {
+  throw new Error('V produkcii nastavte APP_URL na verejnú HTTPS adresu aplikácie.');
+}
+
+const SESSION_SECRET = configuredSessionSecret ?? randomBytes(32).toString('hex');
+const ADMIN_SESSION_COOKIE = 'sss_admin_session';
+const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
+
+function safeCredentialEquals(actual: string, expected: string): boolean {
+  const actualHash = createHash('sha256').update(actual).digest();
+  const expectedHash = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(actualHash, expectedHash);
+}
+
+function createAdminSessionToken(): string {
+  const payload = `${Date.now() + SESSION_DURATION_MS}.${randomBytes(16).toString('hex')}`;
+  const signature = createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function hasValidAdminSession(req: express.Request): boolean {
+  const cookie = req.headers.cookie
+    ?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${ADMIN_SESSION_COOKIE}=`));
+  const token = cookie?.slice(ADMIN_SESSION_COOKIE.length + 1);
+  if (!token) return false;
+
+  const [expiresAt, nonce, signature, ...extraParts] = token.split('.');
+  if (!expiresAt || !nonce || !signature || extraParts.length > 0) return false;
+  const expiration = Number(expiresAt);
+  if (!Number.isSafeInteger(expiration) || expiration <= Date.now()) return false;
+
+  const payload = `${expiresAt}.${nonce}`;
+  const expected = createHmac('sha256', SESSION_SECRET).update(payload).digest();
+  const provided = Buffer.from(signature, 'base64url');
+  return expected.length === provided.length && timingSafeEqual(expected, provided);
+}
 
 // Region centroid lookup for newly discovered caves without explicit coordinates
 const REGION_CENTROIDS: Record<string, { lat: number; lon: number }> = {
@@ -448,7 +514,96 @@ async function scrapeAndMergeLiveRankings(caves: CaveEntity[]): Promise<{
 
 async function createServer() {
   const app = express();
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    const isEmbed = req.path === '/embed.html';
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    if (!isEmbed) res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    if (isProduction) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+      res.setHeader(
+        'Content-Security-Policy',
+        [
+          "default-src 'self'",
+          "base-uri 'self'",
+          "form-action 'self'",
+          ...(isEmbed ? [] : ["frame-ancestors 'none'"]),
+          "object-src 'none'",
+          "script-src 'self'",
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+          "font-src 'self' data: https://fonts.gstatic.com",
+          "img-src 'self' data: blob: https:",
+          "connect-src 'self'",
+          "worker-src 'self' blob:",
+        ].join('; '),
+      );
+    }
+    next();
+  });
   app.use(express.json({ limit: '35mb' }));
+
+  const requestOrigin = (req: express.Request) =>
+    publicSiteUrl?.origin ?? `${req.protocol}://${req.get('host')}`;
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send(
+      `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${requestOrigin(req)}/sitemap.xml\n`,
+    );
+  });
+  app.get('/sitemap.xml', (req, res) => {
+    const origin = requestOrigin(req);
+    res.type('application/xml').send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+        `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+        `<url><loc>${origin}/</loc></url></urlset>\n`,
+    );
+  });
+
+  const cookieOptions = {
+    httpOnly: true,
+    sameSite: 'strict' as const,
+    secure: isProduction,
+    path: '/',
+  };
+  const requireAdmin: express.RequestHandler = (req, res, next) => {
+    if (!hasValidAdminSession(req)) {
+      return res.status(401).json({ error: 'Vyžaduje sa prihlásenie administrátora.' });
+    }
+    next();
+  };
+
+  app.get('/api/auth/session', (req, res) => {
+    const authenticated = hasValidAdminSession(req);
+    res.json({
+      authenticated,
+      ...(authenticated ? { username: ADMIN_USERNAME } : {}),
+    });
+  });
+
+  app.post('/api/auth/login', (req, res) => {
+    const { username, password } = req.body as { username?: unknown; password?: unknown };
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Zadajte prihlasovacie meno a heslo.' });
+    }
+
+    const validUsername = safeCredentialEquals(username, ADMIN_USERNAME);
+    const validPassword = safeCredentialEquals(password, ADMIN_PASSWORD);
+    if (!validUsername || !validPassword) {
+      return res.status(401).json({ error: 'Neplatné prihlasovacie meno alebo heslo.' });
+    }
+
+    res.cookie(ADMIN_SESSION_COOKIE, createAdminSessionToken(), {
+      ...cookieOptions,
+      maxAge: SESSION_DURATION_MS,
+    });
+    res.json({ authenticated: true, username: ADMIN_USERNAME });
+  });
+
+  app.post('/api/auth/logout', (_req, res) => {
+    res.clearCookie(ADMIN_SESSION_COOKIE, cookieOptions);
+    res.json({ authenticated: false });
+  });
 
   // Ensure initial DB exists
   await loadDatabase();
@@ -457,7 +612,8 @@ async function createServer() {
   app.get('/api/caves', async (_req, res) => {
     try {
       const caves = await loadDatabase();
-      res.json({ caves });
+      const updatedAt = await fs.stat(DB_FILE).then(info => info.mtime.toISOString()).catch(() => null);
+      res.json({ caves: redactCaveLocations(caves), updatedAt });
     } catch (err) {
       res.status(500).json({ error: 'Nepodarilo sa načítať databázu jaskýň.' });
     }
@@ -470,11 +626,11 @@ async function createServer() {
   });
 
   // 3. Sync live rankings from sss.sk/category/rebricky-jaskyn/
-  app.post('/api/sss/sync-rankings', async (_req, res) => {
+  app.post('/api/sss/sync-rankings', requireAdmin, async (_req, res) => {
     try {
       const caves = await loadDatabase();
       const summary = await scrapeAndMergeLiveRankings(caves);
-      res.json({ ...summary, caves });
+      res.json({ ...summary, caves: redactCaveLocations(caves) });
     } catch (err) {
       res.status(500).json({
         error: err instanceof Error ? err.message : 'Synchronizácia z sss.sk zlyhala.',
@@ -696,7 +852,7 @@ ${JSON.stringify(articleDigest)}`;
   });
 
   // 6. Multimodal AI PDF/OCR & Raw Text Extraction using Gemini
-  app.post('/api/extract/pdf', async (req, res) => {
+  app.post('/api/extract/pdf', requireAdmin, async (req, res) => {
     try {
       const { pdfUrl, pdfBase64, rawText, tablePreference } = req.body as {
         pdfUrl?: string;
@@ -848,7 +1004,7 @@ Pravidlá extrakcie:
   });
 
   // 7. Commit extracted table into persistent cave database
-  app.post('/api/caves/import-extraction', async (req, res) => {
+  app.post('/api/caves/import-extraction', requireAdmin, async (req, res) => {
     try {
       const extraction = req.body?.extraction as PdfExtractionResult | undefined;
       if (!extraction || !Array.isArray(extraction.rows) || extraction.rows.length === 0) {
@@ -924,14 +1080,14 @@ Pravidlá extrakcie:
       }
       await saveDatabase(caves);
 
-      res.json({ importedRows, newCaves, caves });
+      res.json({ importedRows, newCaves, caves: redactCaveLocations(caves) });
     } catch (err) {
       res.status(500).json({ error: 'Uloženie extrahovaných dát do databázy zlyhalo.' });
     }
   });
 
   // 8. Admin endpoint: save/create a full yearly ranking table
-  app.post('/api/admin/save-year', async (req, res) => {
+  app.post('/api/admin/save-year', requireAdmin, async (req, res) => {
     try {
       const { year, metric, statusDate, author, footnote, rows } = req.body as {
         year: number;
@@ -1065,7 +1221,7 @@ Pravidlá extrakcie:
       }
       await saveDatabase(caves);
 
-      res.json({ savedCount, newCaves, caves });
+      res.json({ savedCount, newCaves, caves: redactCaveLocations(caves) });
     } catch (err) {
       res.status(500).json({ error: 'Uloženie ročníka cez admin rozhranie zlyhalo.' });
     }
@@ -1081,7 +1237,18 @@ Pravidlá extrakcie:
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
+    const assetsPath = `${path.join(distPath, 'assets')}${path.sep}`;
+    app.use(
+      express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          if (filePath === path.join(distPath, 'index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else if (filePath.startsWith(assetsPath)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      }),
+    );
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

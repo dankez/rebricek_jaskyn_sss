@@ -23,24 +23,15 @@ export function buildRankedRows(
   const rows: RankedCaveRow[] = [];
 
   for (const cave of caves) {
-    // Find record for the exact year, or latest record <= year if exact is missing
-    const exact = cave.records.find((r) => r.year === year);
-    const fallback = [...cave.records]
-      .filter((r) => r.year <= year)
-      .sort((a, b) => b.year - a.year)[0];
-    const rec = exact || fallback;
+    const rec = cave.records.find((r) => r.year === year);
     if (!rec) continue;
 
     const val = metric === 'length' ? rec.lengthM : rec.depthM;
     if (val == null || val <= 0) continue;
 
-    const isExactYear = rec.year === year;
-    const isBold = isExactYear
-      ? Boolean(metric === 'length' ? rec.isBoldLength : rec.isBoldDepth)
-      : false;
-    const delta = isExactYear
-      ? (metric === 'length' ? rec.deltaLengthM ?? null : rec.deltaDepthM ?? null)
-      : null;
+    const isBold = Boolean(metric === 'length' ? rec.isBoldLength : rec.isBoldDepth);
+    const delta = metric === 'length' ? rec.deltaLengthM ?? null : rec.deltaDepthM ?? null;
+    const source = metric === 'length' ? rec.sourceLength : rec.sourceDepth;
 
     rows.push({
       rank: 0,
@@ -51,8 +42,8 @@ export function buildRankedRows(
       isUnverified: Boolean(rec.isUnverified),
       secondaryNote: rec.secondarySurveyNote,
       unverifiedNote: rec.unverifiedNote,
-      sourceIssue: rec.sourceIssue,
-      statusDate: rec.statusDate,
+      sourceIssue: source?.issue ?? rec.sourceIssue,
+      statusDate: source?.statusDate ?? rec.statusDate,
     });
   }
 

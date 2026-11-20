@@ -229,7 +229,7 @@ export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({
 
         <div className="space-y-8 p-6">
           {/* Key Metrics */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 border-b border-[#e1e4e8] pb-6">
+          <div className="grid grid-cols-2 gap-4 border-b border-[#e1e4e8] pb-6">
             <div>
               <p className="text-xs text-[#5a6370]">Aktuálna dĺžka</p>
               <p className="mt-1 font-mono-tabular text-xl font-bold text-[#1a1e23]">
@@ -260,19 +260,6 @@ export const CaveDetailDrawer: React.FC<CaveDetailDrawerProps> = ({
                   posledný zápis {latestDepthRec.year}
                 </p>
               )}
-            </div>
-            <div>
-              <p className="text-xs text-[#5a6370]">Nadmorská výška</p>
-              <p className="mt-1 font-mono-tabular text-xl font-bold text-[#1a1e23]">
-                {cave.elevationM ? `${cave.elevationM} m n. m.` : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-[#5a6370]">Orientačná poloha</p>
-              <p className="mt-1 font-mono-tabular text-xs font-medium text-[#1a1e23]">
-                {cave.lat.toFixed(3)}° N<br />
-                {cave.lon.toFixed(3)}° E
-              </p>
             </div>
           </div>
 

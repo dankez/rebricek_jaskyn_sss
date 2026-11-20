@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { CaveEntity } from '../types/caves';
+import mappingImage from '../assets/images/speleo_survey_mapping_1794668122486.jpg';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -183,7 +184,7 @@ export const EvolutionCharts: React.FC<EvolutionChartsProps> = ({
 
           <div className="relative overflow-hidden rounded-xl border border-[#e1e4e8] bg-[#1a1e23] text-white">
             <img
-              src="/src/assets/images/speleo_survey_mapping_1794668122486.jpg"
+              src={mappingImage}
               alt="Historická speleologická dokumentácia a mapovanie krasových priestorov"
               referrerPolicy="no-referrer"
               className="h-48 w-full object-cover opacity-55"

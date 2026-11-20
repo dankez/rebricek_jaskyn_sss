@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
   ArrowDownUp,
+  ArrowDownToLine,
   Download,
   ExternalLink,
   FileSpreadsheet,
   RefreshCw,
+  Ruler,
   Search,
   TrendingUp,
 } from 'lucide-react';
@@ -15,6 +17,8 @@ import {
   exportRankingsPdf,
 } from '../utils/exportReports';
 import { buildBibliografiaUrl } from '../utils/biblioUrl';
+import { SharePanel } from './SharePanel';
+import { readEmbedOptions } from '../utils/share';
 
 interface MilestoneCheckResult {
   hasIncreased: boolean;
@@ -89,8 +93,12 @@ interface RankingsTableProps {
   onMetricChange: (m: 'length' | 'depth') => void;
   onSelectCave: (cave: CaveEntity) => void;
   onSyncFromSss: () => Promise<void>;
+  isAdmin: boolean;
   isSyncing: boolean;
   syncMessage: string | null;
+  embedded?: boolean;
+  dataUpdatedAt?: string | null;
+  dataIsSnapshot?: boolean;
 }
 
 export const RankingsTable: React.FC<RankingsTableProps> = ({
@@ -102,8 +110,12 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
   onMetricChange,
   onSelectCave,
   onSyncFromSss,
+  isAdmin,
   isSyncing,
   syncMessage,
+  embedded = false,
+  dataUpdatedAt,
+  dataIsSnapshot = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [regionFilter, setRegionFilter] = useState('all');
@@ -147,6 +159,70 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
     return Array.from(notes);
   }, [filteredRows]);
 
+  if (embedded) {
+    const options = readEmbedOptions(window.location.search);
+    const has = (column: typeof options.columns[number]) => options.columns.includes(column);
+    const date = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+    const formattedDate = date && !Number.isNaN(date.getTime())
+      ? date.toLocaleDateString('sk-SK', { timeZone: 'Europe/Bratislava' })
+      : null;
+    return (
+      <div className="bg-white text-[#1a1e23]">
+        {options.date && formattedDate && (
+          <p className="px-3 py-2 text-xs text-[#5a6370]">
+            {dataIsSnapshot ? 'Snímka databázy uložená:' : 'Databáza uložená:'} {formattedDate}
+          </p>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <caption className="sr-only">{metric === 'length' ? 'Najdlhšie' : 'Najhlbšie'} jaskyne Slovenska, {selectedYear}</caption>
+            <thead className="bg-[#1a1e23] text-xs text-white">
+              <tr>
+                {has('rank') && <th scope="col" className="px-3 py-2">Por.</th>}
+                {has('name') && <th scope="col" className="px-3 py-2">Názov jaskyne</th>}
+                {has('region') && <th scope="col" className="px-3 py-2">Krasová oblasť</th>}
+                {has('subunit') && <th scope="col" className="px-3 py-2">Podcelok</th>}
+                {has('value') && <th scope="col" className="px-3 py-2 text-right">{metric === 'length' ? 'Dĺžka' : 'Hĺbka'} (m)</th>}
+                {has('change') && <th scope="col" className="px-3 py-2 text-right">Zmena</th>}
+                {has('bibliography') && <th scope="col" className="px-3 py-2 text-right">Bibliografia</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e1e4e8]">
+              {baseRows.length === 0 ? (
+                <tr><td colSpan={options.columns.length} className="px-3 py-4 text-center text-[#5a6370]">
+                  {caves.length ? 'Pre tento ročník nie sú dostupné údaje.' : 'Načítavam údaje…'}
+                </td></tr>
+              ) : baseRows.map(row => {
+                const milestone = checkExplorationMilestone(row.cave, selectedYear, metric);
+                const delta = milestone.metricDelta ?? (row.deltaM != null && row.deltaM > 0 ? row.deltaM : null);
+                const increased = milestone.hasIncreased || (row.deltaM != null && row.deltaM > 0);
+                return (
+                  <tr key={row.cave.id} className={options.colors ? increased ? 'bg-emerald-50/35' : row.isBoldChanged ? 'bg-[#fef9e7]/55' : '' : ''}>
+                    {has('rank') && <td className="px-3 py-2">{row.rank}.</td>}
+                    {has('name') && <td className={`px-3 py-2 ${row.isBoldChanged || increased ? 'font-bold' : ''}`}>{row.cave.name}</td>}
+                    {has('region') && <td className="px-3 py-2">{row.cave.karstRegion}</td>}
+                    {has('subunit') && <td className="px-3 py-2">{row.cave.subUnit}</td>}
+                    {has('value') && <td className={`px-3 py-2 text-right font-mono-tabular ${options.colors ? getMeasurementHighlightClasses(increased, row.isBoldChanged) : increased || row.isBoldChanged ? 'font-bold' : ''}`}>
+                      {options.colors && increased && <TrendingUp className="mr-1 inline-block h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />}
+                      {row.valueM.toLocaleString('sk-SK')}
+                      {row.secondaryNote ? ` ${row.secondaryNote}` : row.isUnverified ? <span title="Neoverený údaj">*</span> : null}
+                    </td>}
+                    {has('change') && <td className="px-3 py-2 text-right font-mono-tabular">
+                      {delta != null
+                        ? <span className={options.colors ? 'rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700' : ''}>+{delta.toLocaleString('sk-SK')} m</span>
+                        : '—'}
+                    </td>}
+                    {has('bibliography') && <td className="px-3 py-2 text-right"><a className="underline" href={buildBibliografiaUrl(row.cave.name)} target="_blank" rel="noopener noreferrer">Články</a></td>}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section id="rebricky" className="mx-auto max-w-[1380px] px-6 py-12">
       <div className="flex flex-col gap-4 border-b border-[#e1e4e8] pb-6 lg:flex-row lg:items-end lg:justify-between">
@@ -165,21 +241,29 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
           </p>
         </div>
 
+        {!embedded && (
+          <div className="mt-4">
+            <SharePanel view="rankings" metric={metric} years={years} selectedYear={selectedYear} />
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={onSyncFromSss}
-            disabled={isSyncing}
-            className="inline-flex items-center gap-2 rounded-md border border-[#e1e4e8] bg-white px-3.5 py-2 text-xs font-semibold text-[#1a1e23] whitespace-nowrap shrink-0 transition-colors hover:border-[#1a1e23] disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Synchronizujem sss.sk...' : 'Synchronizovať z sss.sk'}
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={onSyncFromSss}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-2 rounded-md border border-[#e1e4e8] bg-white px-3.5 py-2 text-xs font-semibold text-[#1a1e23] whitespace-nowrap shrink-0 transition-colors hover:border-[#1a1e23] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Synchronizujem sss.sk...' : 'Synchronizovať z sss.sk'}
+            </button>
+          )}
 
           <button
             type="button"
             onClick={() => exportRankingsCsv(filteredRows, selectedYear, metric)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-[#e1e4e8] bg-white px-3.5 py-2 text-xs font-semibold text-[#1a1e23] whitespace-nowrap shrink-0 transition-colors hover:border-[#1a1e23]"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-[#e1e4e8] bg-white px-3.5 py-2 text-xs font-semibold text-[#1a1e23] whitespace-nowrap shrink-0 transition-colors hover:border-[#1a1e23]"
           >
             <FileSpreadsheet className="h-3.5 w-3.5 text-[#14532d]" />
             Export CSV
@@ -188,7 +272,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
           <button
             type="button"
             onClick={() => exportRankingsPdf(filteredRows, selectedYear, metric)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-[#1a1e23] px-3.5 py-2 text-xs font-semibold text-white whitespace-nowrap shrink-0 transition-colors hover:bg-[#2a3038]"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-[#1a1e23] px-3.5 py-2 text-xs font-semibold text-white whitespace-nowrap shrink-0 transition-colors hover:bg-[#2a3038]"
           >
             <Download className="h-3.5 w-3.5 text-[#fbbc05]" />
             Export PDF
@@ -196,7 +280,39 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
         </div>
       </div>
 
-      {syncMessage && (
+      <nav aria-label="Výber rebríčka jaskýň" className="mx-auto mt-8 grid max-w-3xl gap-3 sm:grid-cols-2">
+        {([
+          { key: 'length', href: '/najdlhsie-jaskyne.html', title: 'Najdlhšie jaskyne Slovenska', description: 'Rebríček podľa dĺžky', icon: Ruler },
+          { key: 'depth', href: '/najhlbsie-jaskyne.html', title: 'Najhlbšie jaskyne Slovenska', description: 'Rebríček podľa hĺbky', icon: ArrowDownToLine },
+        ] as const).map(item => {
+          const selected = metric === item.key;
+          const Icon = item.icon;
+          return (
+            <a
+              key={item.key}
+              href={`${item.href}#rankings`}
+              aria-current={selected && window.location.pathname === item.href ? 'page' : undefined}
+              className={`group flex min-h-24 items-center gap-4 rounded-xl border px-5 py-4 text-left shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b27d00] ${
+                selected
+                  ? 'border-[#1a1e23] bg-[#1a1e23] text-white'
+                  : 'border-[#d2d7dc] bg-white text-[#1a1e23] hover:border-[#b27d00] hover:bg-[#fffaf0]'
+              }`}
+            >
+              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-lg ${selected ? 'bg-[#fbbc05] text-[#1a1e23]' : 'bg-[#f7efd9] text-[#795a1f]'}`}>
+                <Icon className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-base font-bold leading-tight sm:text-lg">{item.title}</span>
+                <span className={`mt-1 block text-xs ${selected ? 'text-[#f6d57c]' : 'text-[#5a6370]'}`}>
+                  {selected ? 'Práve zobrazené' : item.description}
+                </span>
+              </span>
+            </a>
+          );
+        })}
+      </nav>
+
+      {isAdmin && syncMessage && (
         <div className="mt-4 rounded-lg border border-[#fbbc05]/50 bg-[#fef9e7] px-4 py-2.5 text-xs font-medium text-[#1a1e23]">
           {syncMessage}
         </div>
@@ -209,7 +325,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             <button
               type="button"
               onClick={() => onMetricChange('length')}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
+              className={`min-h-11 rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
                 metric === 'length' ? 'bg-white text-[#1a1e23] shadow-xs' : 'text-[#5a6370]'
               }`}
             >
@@ -218,7 +334,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             <button
               type="button"
               onClick={() => onMetricChange('depth')}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
+              className={`min-h-11 rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
                 metric === 'depth' ? 'bg-white text-[#1a1e23] shadow-xs' : 'text-[#5a6370]'
               }`}
             >
@@ -230,8 +346,9 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             aria-label="Vybrať rok rebríčka"
             value={selectedYear}
             onChange={(e) => onYearChange(Number(e.target.value))}
-            className="rounded-lg border border-[#e1e4e8] bg-white px-3 py-2 font-mono-tabular text-xs font-semibold text-[#1a1e23] outline-none focus:border-[#1a1e23]"
+            className="min-h-11 rounded-lg border border-[#e1e4e8] bg-white px-3 py-2 font-mono-tabular text-xs font-semibold text-[#1a1e23] outline-none focus:border-[#1a1e23]"
           >
+            {!years.includes(selectedYear) && <option value={selectedYear}>Ročník {selectedYear} nie je dostupný</option>}
             {[...years].reverse().map((y) => (
               <option key={y} value={y}>
                 Ročník {y}
@@ -243,7 +360,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             aria-label="Filtrovať krasovú oblasť"
             value={regionFilter}
             onChange={(e) => setRegionFilter(e.target.value)}
-            className="rounded-lg border border-[#e1e4e8] bg-white px-3 py-2 text-xs font-medium text-[#1a1e23] outline-none focus:border-[#1a1e23]"
+            className="min-h-11 rounded-lg border border-[#e1e4e8] bg-white px-3 py-2 text-xs font-medium text-[#1a1e23] outline-none focus:border-[#1a1e23]"
           >
             <option value="all">Všetky krasové oblasti ({regions.length})</option>
             {regions.map((reg) => (
@@ -257,7 +374,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('all')}
-              className={`rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${
+              className={`min-h-11 rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${
                 filterMode === 'all' ? 'bg-white text-[#1a1e23] shadow-xs' : 'text-[#5a6370]'
               }`}
             >
@@ -266,7 +383,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('changed')}
-              className={`rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${
+              className={`min-h-11 rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${
                 filterMode === 'changed' ? 'bg-white text-[#1a1e23] shadow-xs' : 'text-[#5a6370]'
               }`}
             >
@@ -275,7 +392,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('unverified')}
-              className={`rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${
+              className={`min-h-11 rounded-md px-2.5 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${
                 filterMode === 'unverified' ? 'bg-white text-[#1a1e23] shadow-xs' : 'text-[#5a6370]'
               }`}
             >
@@ -291,7 +408,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Hľadať jaskyňu alebo planinu..."
-            className="w-full rounded-lg border border-[#e1e4e8] bg-[#f8f9fb] py-2 pl-9 pr-3 text-xs text-[#1a1e23] outline-none focus:border-[#1a1e23] focus:bg-white"
+            className="min-h-11 w-full rounded-lg border border-[#e1e4e8] bg-[#f8f9fb] py-2 pl-9 pr-3 text-xs text-[#1a1e23] outline-none focus:border-[#1a1e23] focus:bg-white"
           />
         </div>
       </div>
@@ -406,7 +523,7 @@ export const RankingsTable: React.FC<RankingsTableProps> = ({
                           href={biblioUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-[#1a1e23] underline decoration-[#e1e4e8] underline-offset-2 hover:text-[#c13100] hover:decoration-[#c13100]"
+                          className="inline-flex min-h-6 items-center gap-1 text-xs font-medium text-[#1a1e23] underline decoration-[#e1e4e8] underline-offset-2 hover:text-[#c13100] hover:decoration-[#c13100]"
                         >
                           Články
                           <ExternalLink className="h-3 w-3" />

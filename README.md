@@ -8,32 +8,35 @@
 
 Moderný informačný portál, historický archív a analytický nástroj pre **Slovenskú speleologickú spoločnosť ([sss.sk](https://sss.sk/))**. Aplikácia automatizovane spracúva oficiálne rebríčky najdlhších a najhlbších jaskýň Slovenska z HTML stránok `sss.sk` a PDF vydaní časopisu **Spravodaj SSS** (ročníky 2005–2026), vizualizuje ich vývoj na interaktívnej mape a spája ich s odbornou bibliografiou na [`bibliografia.sss.sk`](https://bibliografia.sss.sk/).
 
+**English:** [README in English](README.en.md)
+
 ---
 
-## Ukážky aplikácie (Screenshots)
+## Aktuálne ukážky z nasadeného webu (20. 11. 2026)
 
-### 1. Interaktívny atlas, KPI prehľad a farebná topografická mapa Slovenska
-![Interaktívny atlas a mapa objavov Slovenska](docs/screenshots/01-atlas-mapa.jpg)
-*Hlavná obrazovka s kľúčovými ukazovateľmi (KPI) pre vybraný ročník, farebne rozlíšenými krasovými oblasťami Slovenska, riečnou sieťou a časovou osou na animované prehrávanie objavov a zmien v čase.*
+Tieto snímky obrazovky boli zachytené v prehliadači z [verejne nasadenej stránky](https://jaskyne.sss.sk/).
 
-### 2. Oficiálne rebríčky SSS, exporty (CSV/PDF) a AI/OCR extraktor Spravodaja
-![Oficiálne rebríčky SSS a Spravodaj AI/OCR extraktor](docs/screenshots/02-rebricky-ocr.jpg)
-*Tabuľka najdlhších a najhlbších jaskýň s automatickým tučným zvýraznením medziročných zmien, poznámkami `*` pre nepotvrdené merania, tlačidlami na CSV/PDF export a modulom pre AI/OCR extrakciu PDF čísel Spravodaja.*
+### Úvodná stránka a štatistiky
+![Živá úvodná stránka archívu slovenských jaskýň](docs/screenshots/live-home.png)
 
-### 3. Admin rozhranie pre tvorbu budúcich ročníkov a sémantická bibliografia
-![Admin rozhranie pre rebríčky a prepojená bibliografia](docs/screenshots/03-admin-nahlad.jpg)
-*Rýchly editor na prípravu rebríčka pre nasledujúci rok (napr. 2027) s automatickým tučným písmom pri zmene hodnôt, prepínačom `*`, klasickým bodkovým náhľadom tlače a prepojením na sémantické vyhľadávanie v bibliografii SSS.*
+### Najdlhšie a najhlbšie jaskyne
+![Živý rebríček najdlhších jaskýň](docs/screenshots/live-rankings.png)
+![Živý rebríček najhlbších jaskýň](docs/screenshots/live-deepest.png)
+
+### Nastavenie zdieľania a iframe
+![Živý panel na konfiguráciu zdieľaného rebríčka a iframe](docs/screenshots/live-share-embed.png)
+
+### Historická prezentácia
+![Živá animovaná prezentácia vývoja najdlhších jaskýň](docs/screenshots/live-presentations.png)
 
 ---
 
 ## Kompletný prehľad funkcií
 
-### 1. Interaktívny krasový atlas a animácia vývoja v čase (`CaveAtlasMap`)
-- **Farebná topografická mapa Slovenska (WGS84 SVG):** Obsahuje terénny reliéf karpatských celkov, farebne odlíšené hlavné krasové územia (*Nízke Tatry*, *Vysoké a Belianske Tatry*, *Západné Tatry*, *Slovenský kras*, *Spišsko-gemerský kras*, *Malé Karpaty*, *Veľká Fatra*, *Strážovské vrchy*) a riečnu sieť (*Váh*, *Hron*, *Hornád*).
-- **Ovládanie a navigácia:** Približovanie, posun myšou (pan/zoom), reset pohľadu a živý súradnicový HUD kurzora (zemepisná šírka/dĺžka).
-- **Časová os (`Prehrať vývoj v čase`):** Automaticky krokuje naprieč historickými ročníkmi (2005–2026) s vizuálne odlíšenými **GSAP animáciami**:
-  - **Nová jaskyňa v danom roku:** výrazná trojitá pulzujúca rázová vlna, svetelný záblesk a pružné zväčšenie bodu.
-  - **Zmenená jaskyňa (nárast dĺžky alebo hĺbky):** jemnejší svetelný prstenec na decentné upozornenie bez vizuálneho zahltenia.
+### 1. Rebríček a mapa krasových oblastí (`CaveAtlasMap`)
+- **Východisková stránka:** Po otvorení sa zobrazí rebríček s filtrami a exportmi CSV/PDF.
+- **Mapa v hlavnom menu:** Detailný kartografický prehľad zobrazuje hranice ôsmich krajov, vybrané mestá, hlavné rieky a orientačné názvy krasových oblastí; nezobrazuje polohy jaskýň, vchodov, GPS súradnice ani nadmorskú výšku. Hranice krajov vychádzajú z Eurostat GISCO NUTS 2024.
+- **Prezentácie:** Historický vývoj dĺžok a hĺbok je dostupný samostatne v menu.
 
 ### 2. Oficiálne rebríčky SSS a reporty (`RankingsTable`, `exportReports`)
 - **Prepínanie metriky a ročníka:** Zobrazenie rebríčka **Najdlhších** alebo **Najhlbších** jaskýň Slovenska pre ľubovoľný spracovaný rok (predvolene `2026`).
@@ -41,16 +44,22 @@ Moderný informačný portál, historický archív a analytický nástroj pre **
   - **Tučné písmo (`bold`)** automaticky označuje lokality, na ktorých nastala zmena dĺžky alebo hĺbky oproti predchádzajúcemu ročníku.
   - **Hviezdička (`*`)** označuje nepotvrdené údaje alebo pokračujúce revízne merania stabilizovaného polygónu (napr. *Mesačný tieň* `31 840 (9031)*`).
 - **Filtrovanie a radenie:** Fulltextové vyhľadávanie podľa názvu jaskyne, filter krasovej oblasti, zobrazenie iba zmenených položiek a klikateľné radenie stĺpcov.
-- **Živá synchronizácia:** Tlačidlo **Synchronizovať sss.sk** na stiahnutie aktuálnych HTML tabuliek z [`sss.sk/category/rebricky-jaskyn/`](https://sss.sk/category/rebricky-jaskyn/).
+- **Živá synchronizácia:** Administrátori môžu synchronizovať aktuálne HTML tabuľky z [`sss.sk/category/rebricky-jaskyn/`](https://sss.sk/category/rebricky-jaskyn/).
 - **Exporty do CSV a PDF:**
   - **CSV (UTF-8 s BOM):** Priame otvorenie v Exceli / LibreOffice bez poškodenia slovenskej diakritiky.
   - **PDF (`jsPDF` + `jspdf-autotable`):** Profesionálna tlačová zostava v štýle SSS vrátane tučných riadkov zmien a poznámok pod čiarou pre `*`.
+
+### Zdieľanie a vloženie rebríčka
+- **Zdieľateľné odkazy:** Odkaz zachová vybranú metriku a konkrétny ročník alebo vždy najnovší ročník.
+- **Vlastný iframe:** Panel „Zdieľať a vložiť“ umožňuje vybrať stĺpce, zvýraznenie zmien a prírastkov, dátum uloženia databázy a výšku. Rebríček najdlhších a najhlbších jaskýň možno vložiť samostatne.
+- **Automatická výška:** Pri voľbe automatickej výšky vygenerovaný kód obsahuje `embed-resize.js`; rodičovská stránka musí povoľovať skripty. Ak ich editor blokuje, zvoľte pevnú výšku v pixeloch a použite iba iframe.
+- **Verejné stránky:** [Najdlhšie jaskyne](https://jaskyne.sss.sk/najdlhsie-jaskyne.html), [najhlbšie jaskyne](https://jaskyne.sss.sk/najhlbsie-jaskyne.html) a [sitemap](https://jaskyne.sss.sk/sitemap.xml).
 
 ### 3. Detail lokality a analytické grafy (`CaveDetailDrawer`, `EvolutionCharts`)
 - **Výsuvný detail jaskyne:** Základné parametre, krasová oblasť a podcelok, interaktívna SVG krivka vývoja zameraných metrov naprieč rokmi, kompletná tabuľka histórie meraní so zdrojovým vydaním *Spravodaja* a priamymi odkazmi na PDF a bibliografiu.
 - **Vývojové grafy:** GSAP-animované stĺpcové porovnania top jaskynných systémov a súhrnné štatistiky podľa jednotlivých krasových oblastí Slovenska.
 
-### 4. AI/OCR extrakcia PDF vydaní Spravodaja SSS (`SpravodajOcrPanel`)
+### 4. AI/OCR extrakcia PDF vydaní Spravodaja SSS — iba administrátor (`SpravodajOcrPanel`)
 - **Index vydaní zo `sss.sk/spravodaj/`:** Automaticky načítava zoznam dostupných PDF čísel *Spravodaja SSS* so zvýraznením čísel 1 a 2, ktoré tradične obsahujú tabuľky najdlhších a najhlbších jaskýň.
 - **Multimodálne AI/OCR spracovanie (Gemini):**
   - Podporuje spracovanie cez **URL PDF súboru**, **nahratie lokálneho PDF** (vrátane starších naskenovaných ročníkov) alebo **vloženie surového textu** z PDF.
@@ -62,7 +71,7 @@ Moderný informačný portál, historický archív a analytický nástroj pre **
 - **Sémantické dopyty cez Gemini:** Vyhľadávanie v prirodzenom jazyku (napr. *"hlboké priepasti v Slovenskom krase so zmenami po roku 2018"*) s odborným zhrnutím a relevantnými jaskyňami aj článkami.
 - **Presný formát odkazov:** Všetky odkazy na články a témy sa generujú v kanonickom vyhľadávacom tvare `bibliografia.sss.sk/?q=...` (malé písmená, bez diakritiky, medzery nahradené `+`, napr. `https://bibliografia.sss.sk/?q=kunia+priepast` alebo `https://bibliografia.sss.sk/?q=brazda`).
 
-### 6. Admin rozhranie pre tvorbu budúcich rebríčkov (`AdminRankingEditor`)
+### 6. Admin rozhranie pre tvorbu budúcich rebríčkov — iba administrátor (`AdminRankingEditor`)
 - **Rýchle založenie ročníka (napr. `2027`):** Jedným kliknutím predvyplní kompletnú tabuľku z ľubovoľného existujúceho ročníka (dĺžky alebo hĺbky).
 - **Automatická detekcia zmien:** Pri úprave číselnej hodnoty sa okamžite vypočíta rozdiel (`delta`) oproti referenčnému roku a automaticky sa aktivuje **tučné písmo** (`bold`) s možnosťou ručného doladenia.
 - **Správa nepotvrdených údajov (`*`):** Rýchly prepínač hviezdičky a textová poznámka (napr. `(9031)*`) pre každý riadok.
@@ -103,7 +112,7 @@ npx tsx scripts/process_spravodaje.ts
 │   ├── assets/images/                # Vizuálne podklady aplikácie
 │   ├── components/
 │   │   ├── AdminRankingEditor.tsx    # Admin editor pre nové ročníky + náhľad tlače
-│   │   ├── CaveAtlasMap.tsx          # Farebná topografická mapa SR + GSAP animácia v čase
+│   │   ├── CaveAtlasMap.tsx          # Mapa krajov, miest, riek a orientačných krasových oblastí
 │   │   ├── CaveDetailDrawer.tsx      # Detail jaskyne, SVG graf vývoja a bibliografia
 │   │   ├── EvolutionCharts.tsx       # Súhrnné grafy prírastkov a krasových oblastí
 │   │   ├── RankingsTable.tsx         # Oficiálny rebríček s filtrami, bold a * značkami
@@ -128,20 +137,25 @@ npx tsx scripts/process_spravodaje.ts
 
 ---
 
-## API Dokumentácia (`server.ts`)
+## API dokumentácia
 
-Backend beží na rovnakom porte (`3000`) ako Vite dev server alebo produkčný statický build.
+Lokálny Express backend (`server.ts`) beží na porte `3000` (alebo na porte nastavenom cez `PORT`). Produkčný build obsahuje aj PHP implementáciu pre bežný webhosting; podrobnosti a požiadavky sú v [php/README.md](php/README.md).
 
 | Metóda | Endpoint | Popis |
 | :--- | :--- | :--- |
-| `GET` | `/api/caves` | Vráti kompletný zoznam deduplikovaných jaskýň (`{ caves }`) z `data/caves-db.json`. |
+| `GET` | `/api/auth/session` | Vráti stav prihlásenia administrátora (`{ authenticated, username? }`). |
+| `POST` | `/api/auth/login` | Prihlásenie cez `{ username, password }`; nastaví `HttpOnly`, `SameSite=Strict` session cookie. |
+| `POST` | `/api/auth/logout` | Zruší session cookie administrátora. |
+| `GET` | `/api/caves` | Vráti zoznam jaskýň (`{ caves, updatedAt }`) bez súradníc a nadmorskej výšky. `updatedAt` je čas posledného uloženia databázového súboru v ISO 8601 (UTC), prípadne `null`, ak nie je dostupný. |
 | `GET` | `/api/sss/issues` | Stiahne aktuálny zoznam PDF vydaní z `sss.sk/spravodaj/` (s fallback cache zoznamom). |
-| `POST` | `/api/sss/sync-rankings` | Zosynchronizuje HTML tabuľky z `sss.sk` a zlúči ich s databázou. |
+| `POST` | `/api/sss/sync-rankings` | Iba admin: zosynchronizuje HTML tabuľky z `sss.sk` a zlúči ich s databázou. |
 | `GET` | `/api/bibliography?q=...&limit=40` | Proxy a fulltextový filter nad `bibliografia.sss.sk/data/articles.json`. |
 | `POST` | `/api/search/semantic` | Sémantické AI vyhľadávanie (Gemini) cez jaskyne aj bibliografické články (`{ query }`). |
-| `POST` | `/api/extract/pdf` | AI/OCR extrakcia tabuľky z `pdfUrl`, `pdfBase64` alebo `rawText` pomocou Gemini. |
-| `POST` | `/api/caves/import-extraction` | Zápis potvrdenej AI/OCR extrakcie do databázy a prepočet medziročných delt. |
-| `POST` | `/api/admin/save-year` | Uloženie alebo aktualizácia celého ročníka rebríčka z Admin editora. |
+| `POST` | `/api/extract/pdf` | Iba admin: AI/OCR extrakcia tabuľky z `pdfUrl`, `pdfBase64` alebo `rawText` pomocou Gemini. |
+| `POST` | `/api/caves/import-extraction` | Iba admin: zápis potvrdenej AI/OCR extrakcie do databázy a prepočet medziročných delt. |
+| `POST` | `/api/admin/save-year` | Iba admin: uloženie alebo aktualizácia celého ročníka rebríčka z Admin editora. |
+
+Neprihlásené požiadavky na chránené operácie dostanú HTTP `401`. Lokálny Express používa neprodukčné predvolené prihlasovanie; produkcia vyžaduje vlastné `ADMIN_USERNAME`, `ADMIN_PASSWORD`, HTTPS `APP_URL` a `SESSION_SECRET`. PHP nasadenie používa samostatnú súkromnú konfiguráciu s hashom hesla podľa [php/README.md](php/README.md).
 
 ### Príklad požiadavky na `POST /api/admin/save-year`
 ```json
@@ -174,6 +188,7 @@ Backend beží na rovnakom porte (`3000`) ako Vite dev server alebo produkčný 
 - **Node.js** `>= 20.x`
 - **npm**
 - Voliteľne **GEMINI_API_KEY** (pre AI/OCR extrakciu PDF a sémantické vyhľadávanie; bez kľúča funguje lexikálny fallback vyhľadávania a plné prehliadanie, exporty aj Admin editor)
+- **SESSION_SECRET** (povinný v produkcii; vytvorte ho príkazom `openssl rand -hex 32`)
 
 ### 2. Konfigurácia prostredia
 Skopírujte `.env.example` na `.env` a nastavte váš kľúč na serverovej strane:
@@ -183,8 +198,14 @@ cp .env.example .env
 Obsah `.env`:
 ```env
 GEMINI_API_KEY="vas_gemini_api_kluc"
-APP_URL="http://localhost:3000"
+ADMIN_USERNAME="vlastne-admin-meno"
+ADMIN_PASSWORD="vlastne-dlhe-nahodne-heslo"
+SESSION_SECRET="hodnota-z-openssl-rand-hex-32"
+PORT="3000"
+APP_URL="https://domena-aplikacie.example"
 ```
+V lokálnom vývojovom režime sa pri prázdnom `SESSION_SECRET` vygeneruje náhodný kľúč pre aktuálny beh servera. Hodnota `APP_URL` musí pri produkčnom nasadení zodpovedať verejnej HTTPS doméne; z nej sa generuje sitemap.
+Tieto premenné prihlasovania platia pre Express backend. PHP hosting používa samostatné nastavenie mimo webrootu a skript `php/setup.php`; nepoužívajte v dokumentácii ani konfigurácii reálne heslá.
 
 ### 3. Inštalácia závislostí a vývojový server
 ```bash
@@ -199,9 +220,14 @@ npm run build
 npm start
 ```
 
+`npm run build` vytvorí PHP API, Apache pravidlo a sanitizovanú snímku `dist/data/caves.json` bez súradníc. Administrácia vyžaduje PHP, presmerovanie `/api/*` a samostatne pripravenú súkromnú databázu a konfiguráciu mimo webrootu. Samotné nahratie `dist/` nestačí; postup je v [php/README.md](php/README.md).
+
 ### 5. Kontrola typov a obnova dát z archívu
 ```bash
 npm run lint
+node --import tsx --test src/utils/share.test.ts
+php php/tests/integration.php
+php php/tests/setup.php
 npx tsx scripts/process_spravodaje.ts
 ```
 
@@ -209,5 +235,5 @@ npx tsx scripts/process_spravodaje.ts
 
 ## Metodika dát a ochrana prírody
 
-- **Ochrana lokalít:** V súlade so zákonom o ochrane prírody a krajiny verejné rebríčky SSS neobsahujú presné GPS súradnice vchodov do jaskýň. Body na interaktívnej mape sú umiestnené deterministicky v rámci príslušného krasového celku a geomorfologického podcelku (napr. *Demänovské vrchy*, *Silická planina*, *Muránska planina*).
+- **Ochrana lokalít:** Web nezobrazuje polohy jaskýň, vchodov, GPS súradnice ani nadmorskú výšku. Mapa zobrazuje krajské hranice a širšie orientačné krasové oblasti, nie polohy jednotlivých jaskýň.
 - **Zdroje:** Oficiálne štatistiky zostavovateľa Jána Tencera publikované v *Spravodaji SSS*, webové tabuľky na [`sss.sk`](https://sss.sk/category/rebricky-jaskyn/) a archív [`bibliografia.sss.sk`](https://bibliografia.sss.sk/).

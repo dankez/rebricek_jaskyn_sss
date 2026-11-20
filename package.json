@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "tsx scripts/prepare-public-data.ts && vite build && tsx scripts/prepare-seo.ts && tsx scripts/prepare-php.ts",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
